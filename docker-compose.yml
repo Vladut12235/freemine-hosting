@@ -1,0 +1,104 @@
+version: '3.9'
+services:
+  postgres:
+    image: postgres:16-alpine
+    container_name: freemine-postgres
+    environment:
+      POSTGRES_DB: freemine
+      POSTGRES_USER: postgres
+      POSTGRES_PASSWORD: postgres
+    ports:
+      - "5432:5432"
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U postgres -d freemine"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+  redis:
+    image: redis:7-alpine
+    container_name: freemine-redis
+    ports:
+      - "6379:6379"
+    command: ["redis-server", "--appendonly", "yes"]
+    volumes:
+      - redis_data:/data
+
+  backend:
+    build:
+      context: ./backend
+      dockerfile: ../docker/backend.Dockerfile
+    container_name: freemine-backend
+    environment:
+      DATABASE_URL: postgresql://postgres:postgres@postgres:5432/freemine
+      REDIS_URL: redis://redis:6379
+      JWT_SECRET: change-this-secret
+      NODE_AGENT_SECRET: change-this-secret
+      PORT: 4000
+    ports:
+      - "4000:4000"
+    depends_on:
+      postgres:
+        condition: service_healthy
+      redis:
+        condition: service_started
+
+  frontend:
+    build:
+      context: ./frontend
+      dockerfile: ../docker/frontend.Dockerfile
+    container_name: freemine-frontend
+    environment:
+      NEXT_PUBLIC_API_URL: http://backend:4000
+      NEXT_PUBLIC_WS_URL: ws://backend:4000
+    ports:
+      - "3000:3000"
+    depends_on:
+      - backend
+
+  worker:
+    build:
+      context: ./worker
+      dockerfile: ../docker/worker.Dockerfile
+    container_name: freemine-worker
+    environment:
+      DATABASE_URL: postgresql://postgres:postgres@postgres:5432/freemine
+      REDIS_URL: redis://redis:6379
+      NODE_AGENT_SECRET: change-this-secret
+    depends_on:
+      - postgres
+      - redis
+
+  node-agent:
+    build:
+      context: ./node-agent
+      dockerfile: ../docker/node-agent.Dockerfile
+    container_name: freemine-node-agent
+    environment:
+      NODE_AGENT_SECRET: change-this-secret
+      DATABASE_URL: postgresql://postgres:postgres@postgres:5432/freemine
+      REDIS_URL: redis://redis:6379
+    ports:
+      - "4100:4100"
+    depends_on:
+      - postgres
+      - redis
+
+  discord-bot:
+    build:
+      context: ./discord-bot
+      dockerfile: ../docker/discord-bot.Dockerfile
+    container_name: freemine-discord-bot
+    environment:
+      DISCORD_BOT_TOKEN: ${DISCORD_BOT_TOKEN}
+      DISCORD_CLIENT_ID: ${DISCORD_CLIENT_ID}
+      DISCORD_GUILD_ID: ${DISCORD_GUILD_ID}
+      DATABASE_URL: postgresql://postgres:postgres@postgres:5432/freemine
+    depends_on:
+      - postgres
+
+volumes:
+  postgres_data:
+  redis_data:

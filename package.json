@@ -1,0 +1,21 @@
+{
+  "name": "@freemine/root",
+  "private": true,
+  "workspaces": [
+    "frontend",
+    "backend",
+    "shared",
+    "worker",
+    "node-agent",
+    "discord-bot"
+  ],
+  "scripts": {
+    "build": "npm run build --workspaces --if-present",
+    "typecheck": "npm run typecheck --workspaces --if-present",
+    "lint": "npm run lint --workspaces --if-present",
+    "dev": "docker compose up --build"
+  },
+  "engines": {
+    "node": ">=20"
+  }
+}
